@@ -127,17 +127,37 @@ public:
     bool onGround;
     bool facingRight;
     int lives;
+    float animationTimer;
+    int frameIndex;
+    
     Player(float x, float y) {
         rect = { x, y, 32, 32 };
         velocity = { 0, 0 };
         onGround = false;
         facingRight = true;
         lives = 3;
+        animationTimer = 0;
+        frameIndex = 0;
     }
+    
     void Update(float deltaTime, const std::vector<Rectangle>& platforms) {
+        // ... (оставляем существующую логику движения)
         float moveInput = 0.0f;
         if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) moveInput = -1.0f;
         if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) moveInput = 1.0f;
+        
+        // Анимация при движении
+        if (moveInput != 0 && onGround) {
+            animationTimer += deltaTime;
+            if (animationTimer > 0.1f) {
+                animationTimer = 0;
+                frameIndex = (frameIndex + 1) % 4;
+            }
+        } else {
+            animationTimer = 0;
+            frameIndex = 0;
+        }
+        
         velocity.x = moveInput * PLAYER_SPEED;
         if (moveInput != 0) facingRight = (moveInput > 0);
         if (IsKeyPressed(KEY_SPACE) && onGround) {
@@ -176,19 +196,47 @@ public:
         }
         if (rect.y < 0) rect.y = 0;
     }
+    
     void Draw() const {
-        // Синий цвет (добрый)
-        DrawRectangleRec(rect, BLUE);
-        // Большие глаза (добрые)
-        DrawCircle(rect.x + rect.width - 8, rect.y + 10, 4, WHITE);
-        DrawCircle(rect.x + 8, rect.y + 10, 4, WHITE);
-        DrawCircle(rect.x + rect.width - 8, rect.y + 10, 2, BLACK);
-        DrawCircle(rect.x + 8, rect.y + 10, 2, BLACK);
-        // Широкий радостный рот
-        DrawRectangle(rect.x + rect.width/2 - 8, rect.y + 18, 16, 4, BLACK);
+        // Капюшон/шапка
+        DrawRectangle(rect.x, rect.y, rect.width, 10, DARKBLUE);
+        
+        // Лицо
+        DrawRectangle(rect.x, rect.y + 10, rect.width, 12, {255, 224, 189, 255}); // Цвет кожи
+        
+        // Тело (синяя куртка)
+        DrawRectangle(rect.x, rect.y + 22, rect.width, 10, BLUE);
+        
+        // Глаза
+        DrawCircle(rect.x + 9, rect.y + 15, 3, WHITE);
+        DrawCircle(rect.x + 23, rect.y + 15, 3, WHITE);
+        DrawCircle(rect.x + 9, rect.y + 15, 1.5, BLACK);
+        DrawCircle(rect.x + 23, rect.y + 15, 1.5, BLACK);
+        
+        // Зрачки (смотрят в сторону движения)
+        if (facingRight) {
+            DrawCircle(rect.x + 10, rect.y + 15, 0.8, WHITE);
+            DrawCircle(rect.x + 24, rect.y + 15, 0.8, WHITE);
+        } else {
+            DrawCircle(rect.x + 8, rect.y + 15, 0.8, WHITE);
+            DrawCircle(rect.x + 22, rect.y + 15, 0.8, WHITE);
+        }
+        
+        // Улыбка
+        DrawLine(rect.x + 13, rect.y + 20, rect.x + 19, rect.y + 20, BLACK);
+        
         // Румянец
-        DrawCircle(rect.x + rect.width - 4, rect.y + 16, 3, PINK);
-        DrawCircle(rect.x + 4, rect.y + 16, 3, PINK);
+        DrawCircle(rect.x + 5, rect.y + 18, 2, {255, 182, 193, 255});
+        DrawCircle(rect.x + 27, rect.y + 18, 2, {255, 182, 193, 255});
+        
+        // Ноги
+        if (onGround && animationTimer > 0 && frameIndex % 2 == 0) {
+            DrawRectangle(rect.x + 5, rect.y + rect.height - 8, 8, 8, DARKBLUE);
+            DrawRectangle(rect.x + 19, rect.y + rect.height - 8, 8, 8, DARKBLUE);
+        } else {
+            DrawRectangle(rect.x + 5, rect.y + rect.height - 8, 8, 8, BLUE);
+            DrawRectangle(rect.x + 19, rect.y + rect.height - 8, 8, 8, BLUE);
+        }
     }
 };
 
@@ -203,13 +251,17 @@ public:
     float respawnTimer;
     float startX, startY;
     float startSpeed;
+    float bounceTimer;
+    
     Enemy(float x, float y, float s = 80.0f) {
         startX = x; startY = y; startSpeed = s;
-        rect = { x, y, 28, 28 };
+        rect = { x, y, 32, 32 };
         speed = s;
         active = true;
         respawnTimer = 0.0f;
+        bounceTimer = 0.0f;
     }
+    
     void Update(float deltaTime) {
         if (!active) {
             respawnTimer -= deltaTime;
@@ -220,28 +272,48 @@ public:
             }
             return;
         }
+        
+        bounceTimer += deltaTime * 8;
         rect.x += speed * deltaTime;
         if (rect.x <= 0) { rect.x = 0; speed = -speed; }
         if (rect.x + rect.width >= SCREEN_WIDTH) { rect.x = SCREEN_WIDTH - rect.width; speed = -speed; }
+        
+        // Эффект подпрыгивания
+        float bounce = sinf(bounceTimer) * 2;
+        rect.y = startY + bounce;
     }
+    
     void Draw() const {
         if (!active) return;
-        DrawRectangleRec(rect, RED);
-        DrawRectangleLinesEx(rect, 1, RED);
-        // Злые глаза (узкие)
-        DrawRectangle(rect.x + rect.width - 10, rect.y + 7, 6, 3, WHITE);
-        DrawRectangle(rect.x + 4, rect.y + 7, 6, 3, WHITE);
-        DrawRectangle(rect.x + rect.width - 9, rect.y + 7, 2, 3, BLACK);
-        DrawRectangle(rect.x + 5, rect.y + 7, 2, 3, BLACK);
-        // Острые брови (наклон вниз)
-        DrawLine(rect.x + rect.width - 12, rect.y + 5, rect.x + rect.width - 5, rect.y + 7, BLACK);
-        DrawLine(rect.x + 5, rect.y + 5, rect.x + 12, rect.y + 7, BLACK);
-        // Злой рот (перевёрнутая дуга)
-        DrawLine(rect.x + rect.width/2 - 6, rect.y + 20, rect.x + rect.width/2 + 6, rect.y + 20, BLACK);
-        DrawPixel(rect.x + rect.width/2 - 6, rect.y + 19, BLACK);
-        DrawPixel(rect.x + rect.width/2 + 6, rect.y + 19, BLACK);
+        
+        // Тело слизня
+        float bounce = sinf(bounceTimer) * 2;
+        DrawRectangleRounded({rect.x, rect.y, rect.width, rect.height}, 0.5f, 10, GREEN);
+        
+        // Глаза
+        DrawCircle(rect.x + 10, rect.y + 12, 4, WHITE);
+        DrawCircle(rect.x + 22, rect.y + 12, 4, WHITE);
+        DrawCircle(rect.x + 9, rect.y + 12, 2, BLACK);
+        DrawCircle(rect.x + 21, rect.y + 12, 2, BLACK);
+        
+        // Злые брови
+        DrawLine(rect.x + 6, rect.y + 8, rect.x + 14, rect.y + 10, BLACK);
+        DrawLine(rect.x + 18, rect.y + 8, rect.x + 26, rect.y + 10, BLACK);
+        
+        // Рот
+        DrawLine(rect.x + 12, rect.y + 22, rect.x + 20, rect.y + 22, BLACK);
+        
+        // Блики
+        DrawCircle(rect.x + 8, rect.y + 10, 1, WHITE);
+        DrawCircle(rect.x + 20, rect.y + 10, 1, WHITE);
     }
-    void Kill() { if (active) { active = false; respawnTimer = ENEMY_RESPAWN_TIME; } }
+    
+    void Kill() { 
+        if (active) { 
+            active = false; 
+            respawnTimer = ENEMY_RESPAWN_TIME; 
+        } 
+    }
 };
 
 // ----------------------------------------------------
